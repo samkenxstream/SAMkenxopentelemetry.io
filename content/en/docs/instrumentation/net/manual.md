@@ -54,13 +54,14 @@ var serviceVersion = "1.0.0";
 
 using var tracerProvider = Sdk.CreateTracerProviderBuilder()
     .AddSource(serviceName)
-    .SetResourceBuilder(ResourceBuilder
-        .CreateDefault()
-        .AddService(serviceName: serviceName, serviceVersion: serviceVersion))
+    .ConfigureResource(resource =>
+        resource.AddService(
+          serviceName: serviceName,
+          serviceVersion: serviceVersion))
     .AddConsoleExporter()
     .Build();
 
-//...
+// ...
 ```
 
 This is also where you can configure instrumentation libraries.
@@ -76,13 +77,20 @@ for ASP.NET Core setup.
 First, ensure that you have the right packages:
 
 ```
-dotnet add package OpenTelemetry --prerelease
-dotnet add package OpenTelemetry.Extensions.Hosting --prerelease
-dotnet add package OpenTelemetry.Exporter.Console --prerelease
+dotnet add package OpenTelemetry
+dotnet add package OpenTelemetry.Extensions.Hosting
+dotnet add package OpenTelemetry.Exporter.Console
+```
+
+Then you can install the Instrumentation package
+
+```
+dotnet add package OpenTelemetry.Instrumentation.AspNetCore --prerelease
 ```
 
 Note that the `--prerelease` flag is required for all instrumentation packages
-because they are all are pre-release.
+because they are all dependent on naming conventions for attributes/labels
+(Semantic Conventions) that aren't yet classed as stable.
 
 Next, configure it in your ASP.NET Core startup routine where you have access to
 an `IServiceCollection`.
@@ -100,15 +108,17 @@ var serviceVersion = "1.0.0";
 var builder = WebApplication.CreateBuilder(args);
 
 // Configure important OpenTelemetry settings, the console exporter
-builder.Services.AddOpenTelemetry().WithTracing(b =>
-{
-    b
-    .AddConsoleExporter()
-    .AddSource(serviceName)
-    .SetResourceBuilder(ResourceBuilder
-        .CreateDefault()
-        .AddService(serviceName: serviceName, serviceVersion: serviceVersion));
-});
+builder.Services.AddOpenTelemetry()
+  .WithTracing(b =>
+  {
+      b
+      .AddConsoleExporter()
+      .AddSource(serviceName)
+      .ConfigureResource(resource =>
+          resource.AddService(
+            serviceName: serviceName,
+            serviceVersion: serviceVersion))
+  });
 ```
 
 This is also where you can configure instrumentation libraries.
@@ -120,8 +130,7 @@ endpoint, you'll have to use a different exporter.
 
 Once tracing is initialized, you can configure an
 [`ActivitySource`](/docs/concepts/signals/traces/#tracer), which will be how you
-trace operations with
-[`Activity`s](/docs/concepts/signals/traces/#spans-in-opentelemetry).
+trace operations with [`Activity`s](/docs/concepts/signals/traces/#spans).
 
 Typically, an `ActivitySource` is instantiated once per app/service that is
 being instrumented, so it's a good idea to instantiate it once in a shared
@@ -147,9 +156,8 @@ although it is generally sufficient to just have one defined per service.
 
 ## Creating Activities
 
-To create an
-[`Activity`](/docs/concepts/signals/traces/#spans-in-opentelemetry), give it a
-name and create it from your
+To create an [`Activity`](/docs/concepts/signals/traces/#spans), give it a name
+and create it from your
 [`ActivitySource`](/docs/concepts/signals/traces/#tracer).
 
 ```csharp
@@ -188,7 +196,7 @@ tracked as a nested operation under `ParentActivity`.
 
 ### Nested Activities in the same scope
 
-You may wish to create a parent-child relationsip in the same scope. Although
+You may wish to create a parent-child relationship in the same scope. Although
 possible, this is generally not recommended because you need to be careful to
 end any nested `Activity` when you expect it to end.
 
@@ -283,6 +291,9 @@ activity?.SetTag("operation.value", 1);
 activity?.SetTag("operation.name", "Saying hello!");
 activity?.SetTag("operation.other-stuff", new int[] { 1, 2, 3 });
 ```
+
+We recommend that all Tag names are defined in constants rather than defined
+inline as this provides both consistency and also discoverability.
 
 ## Adding events
 

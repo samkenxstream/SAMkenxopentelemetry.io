@@ -10,8 +10,7 @@ in order to generate telemetry data for a particular instrumented library.
 
 For example,
 [the instrumentation library for ASP.NET Core](https://www.nuget.org/packages/OpenTelemetry.Instrumentation.AspNetCore)
-will automatically create
-[spans](/docs/concepts/signals/traces/#spans-in-opentelemetry) and
+will automatically create [spans](/docs/concepts/signals/traces/#spans) and
 [metrics](/docs/concepts/signals/metrics) based on the inbound HTTP requests.
 
 ## Setup
@@ -26,17 +25,31 @@ dotnet add package OpenTelemetry.Instrumentation.{library-name-or-type}
 It is typically then registered at application startup time, such as when
 creating a [TracerProvider](/docs/concepts/signals/traces/#tracer-provider).
 
+## Note on Versioning
+
+The Semantic Conventions (Standards) for attribute names are not currently
+stable therefore the instrumentation package is currently not in a released
+state. That doesn't mean that the functionality itself is not stable, only that
+the names of some of the attributes may change in the future, some may be added,
+some may be removed. This means that you need to use the `--prerelease` flag, or
+install a specific version of the package
+
 ## Example with ASP.NET Core and HttpClient
 
 As an example, here's how you can instrument inbound and output requests from an
 ASP.NET Core app.
 
-First, get the appropriate packages:
+First, get the appropriate packages of OpenTelemetry Core:
 
 ```
-dotnet add package OpenTelemetry --prerelease
-dotnet add package OpenTelemetry.Extensions.Hosting --prerelease
-dotnet add package OpenTelemetry.Exporter.Console --prerelease
+dotnet add package OpenTelemetry
+dotnet add package OpenTelemetry.Extensions.Hosting
+dotnet add package OpenTelemetry.Exporter.Console
+```
+
+Then you can install the Instrumentation packages
+
+```
 dotnet add package OpenTelemetry.Instrumentation.AspNetCore --prerelease
 dotnet add package OpenTelemetry.Instrumentation.Http --prerelease
 ```
@@ -44,28 +57,19 @@ dotnet add package OpenTelemetry.Instrumentation.Http --prerelease
 Next, configure each instrumentation library at startup and use them!
 
 ```csharp
-using System.Diagnostics;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
 
-// Define some important constants and the activity source
-var serviceName = "MyCompany.MyProduct.MyService";
-var serviceVersion = "1.0.0";
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Configure important OpenTelemetry settings, the console exporter, and instrumentation library
-builder.Services.AddOpenTelemetry().WithTracing(b =>
-{
-    b
-    .AddConsoleExporter()
-    .AddSource(serviceName)
-    .SetResourceBuilder(
-        ResourceBuilder.CreateDefault()
-            .AddService(serviceName: serviceName, serviceVersion: serviceVersion))
-    .AddHttpClientInstrumentation()
-    .AddAspNetCoreInstrumentation();
-});
+builder.Services.AddOpenTelemetry()
+  .WithTracing(b =>
+  {
+      b
+      .AddHttpClientInstrumentation()
+      .AddAspNetCoreInstrumentation();
+  });
 
 var app = builder.Build();
 
@@ -94,7 +98,8 @@ libraries will:
 - Generate a span representing the request made to the endpoint
 - Generate a child span representing the HTTP GET made to `https://example.com/`
 
-If you add more instrumentation libraries, then you get more telemetry data.
+If you add more instrumentation libraries, then you get more spans for each of
+those.
 
 ## Available instrumentation libraries
 
